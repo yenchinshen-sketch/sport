@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>北小畢業生運動出席調查</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="app-shell">
+    <section class="hero" aria-label="團體照片">
+      <img src="assets/group-photo.jpg" alt="北小畢業生運動團體照片">
+    </section>
+
+    <section class="intro">
+      <p class="eyebrow">Sports Attendance</p>
+      <h1>北小畢業生運動出席調查</h1>
+      <div class="score-strip" aria-live="polite">
+        <div>
+          <span id="presentCount">0</span>
+          <small>出席</small>
+        </div>
+        <div>
+          <span id="absentCount">0</span>
+          <small>請假</small>
+        </div>
+        <div>
+          <span id="totalCount">0</span>
+          <small>已填</small>
+        </div>
+      </div>
+    </section>
+
+    <form id="attendanceForm" class="survey-form">
+      <label class="field-label" for="studentName">學生姓名</label>
+      <div class="select-wrap">
+        <select id="studentName" name="studentName" required>
+          <option value="">請選擇姓名</option>
+          <option value="序恆">序恆</option>
+          <option value="瑞安">瑞安</option>
+          <option value="悠時">悠時</option>
+          <option value="泓毅">泓毅</option>
+          <option value="亦宸">亦宸</option>
+          <option value="凱恩">凱恩</option>
+        </select>
+      </div>
+
+      <section class="date-section" aria-labelledby="dateTitle">
+        <h2 id="dateTitle">運動日期</h2>
+        <div id="dateList" class="date-list"></div>
+      </section>
+
+      <section class="summary" aria-labelledby="summaryTitle">
+        <h2 id="summaryTitle">填寫結果</h2>
+        <div class="summary-grid">
+          <div>
+            <h3>出席日期</h3>
+            <p id="presentDates">尚未選擇</p>
+          </div>
+          <div>
+            <h3>請假日期</h3>
+            <p id="absentDates">尚未選擇</p>
+          </div>
+        </div>
+        <p class="total-line">合計共上 <strong id="classTotal">0</strong> 天的課</p>
+      </section>
+
+      <button class="submit-button" type="submit">送出調查</button>
+      <p id="formMessage" class="form-message" role="status" aria-live="polite"></p>
+    </form>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
