@@ -1,6 +1,7 @@
 // Paste your deployed Google Apps Script Web App URL here to send responses to Google Sheets.
 const GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyE4EsJLCVPxeCksCguZ5xvYqKsaZA3f9nuxO1h0GdGDvYyPsRqQO8fb_JGbYFimj5K/exec";
 const GOOGLE_SHEET_URL = "";
+const APP_VERSION = "v4";
 const SUBMISSIONS_STORAGE_KEY = "sports-attendance-submissions";
 
 const dates = [
@@ -29,6 +30,7 @@ const classTotal = document.querySelector("#classTotal");
 const formMessage = document.querySelector("#formMessage");
 const submitButton = document.querySelector(".submit-button");
 let isReviewingSavedRecord = false;
+let lookupRequestId = 0;
 
 function renderDates() {
   dateList.innerHTML = dates.map((date) => `
@@ -180,6 +182,70 @@ function saveLocalBackup(payload) {
   localStorage.setItem(SUBMISSIONS_STORAGE_KEY, JSON.stringify(records));
 }
 
+function requestJsonp(url, params, timeoutMs = 12000) {
+  return new Promise((resolve, reject) => {
+    const callbackName = `attendanceLookup_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const endpoint = new URL(url);
+    let timer = null;
+    let script = null;
+
+    Object.entries({
+      ...params,
+      callback: callbackName
+    }).forEach(([key, value]) => {
+      endpoint.searchParams.set(key, value);
+    });
+
+    function cleanup() {
+      window[callbackName] = undefined;
+
+      if (timer) {
+        clearTimeout(timer);
+      }
+
+      if (script && script.parentNode) {
+        script.parentNode.removeChild(script);
+      }
+    }
+
+    window[callbackName] = (response) => {
+      cleanup();
+      resolve(response);
+    };
+
+    script = document.createElement("script");
+    script.src = endpoint.toString();
+    script.onerror = () => {
+      cleanup();
+      reject(new Error("lookup failed"));
+    };
+
+    timer = setTimeout(() => {
+      cleanup();
+      reject(new Error("lookup timeout"));
+    }, timeoutMs);
+
+    document.body.appendChild(script);
+  });
+}
+
+async function getRemoteSubmission(name) {
+  if (!GOOGLE_APPS_SCRIPT_URL || !name) {
+    return null;
+  }
+
+  const response = await requestJsonp(GOOGLE_APPS_SCRIPT_URL, {
+    action: "lookup",
+    studentName: name
+  });
+
+  if (!response || response.ok === false || !response.record) {
+    return null;
+  }
+
+  return response.record;
+}
+
 function setDateInputsDisabled(disabled) {
   dateList.querySelectorAll("input").forEach((input) => {
     input.disabled = disabled;
@@ -250,24 +316,65 @@ function startEditingSavedRecord() {
   }
 }
 
-function handleStudentChange() {
+async function handleStudentChange() {
   clearMissingHighlights();
-
-  const savedRecord = getSavedSubmission(studentName.value);
-  if (savedRecord) {
-    showSavedRecord(savedRecord);
-    return;
-  }
+  const selectedName = studentName.value;
+  const currentLookupId = ++lookupRequestId;
 
   setReviewMode(false);
   clearSelections();
   updateSummary();
 
-  if (studentName.value) {
-    setMessage(`請完成 ${dates.length} 天的出席狀態後再送出。`);
-  } else {
+  if (!selectedName) {
     setMessage("請先選擇學生姓名。");
+    return;
   }
+
+  const localRecord = getSavedSubmission(selectedName);
+
+  if (GOOGLE_APPS_SCRIPT_URL) {
+    setDateInputsDisabled(true);
+    submitButton.disabled = true;
+    submitButton.classList.add("is-incomplete");
+    submitButton.textContent = "查詢資料中...";
+    setMessage(`正在查詢 ${selectedName} 之前填寫過的資料...`);
+
+    try {
+      const remoteRecord = await getRemoteSubmission(selectedName);
+
+      if (currentLookupId !== lookupRequestId) {
+        return;
+      }
+
+      if (remoteRecord) {
+        saveLocalBackup(remoteRecord);
+        showSavedRecord(remoteRecord);
+        return;
+      }
+    } catch (error) {
+      if (currentLookupId !== lookupRequestId) {
+        return;
+      }
+
+      if (localRecord) {
+        showSavedRecord(localRecord);
+        setMessage(`暫時無法查詢 Google Sheet，先顯示此裝置已儲存的 ${selectedName} 資料。`, "error");
+        return;
+      }
+
+      setReviewMode(false);
+      setMessage("暫時無法查詢 Google Sheet，請確認網路後再試；也可以先重新填寫後送出。", "error");
+      return;
+    }
+  }
+
+  if (localRecord) {
+    showSavedRecord(localRecord);
+    return;
+  }
+
+  setReviewMode(false);
+  setMessage(`尚未找到 ${selectedName} 的舊資料，請完成 ${dates.length} 天的出席狀態後再送出。`);
 }
 
 async function submitToGoogleSheet(payload) {
@@ -319,7 +426,7 @@ function validateForm() {
 
 renderDates();
 updateSummary();
-setMessage(`請完成 ${dates.length} 天的出席狀態後再送出。`);
+setMessage(`請先選擇學生姓名。系統版本 ${APP_VERSION}`);
 
 studentName.addEventListener("change", handleStudentChange);
 
