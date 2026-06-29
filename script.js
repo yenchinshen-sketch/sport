@@ -1,6 +1,7 @@
 // Paste your deployed Google Apps Script Web App URL here to send responses to Google Sheets.
 const GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyE4EsJLCVPxeCksCguZ5xvYqKsaZA3f9nuxO1h0GdGDvYyPsRqQO8fb_JGbYFimj5K/exec";
 const GOOGLE_SHEET_URL = "";
+const SUBMISSIONS_STORAGE_KEY = "sports-attendance-submissions";
 
 const dates = [
   { id: "2026-06-15", label: "6/15(一)", week: "第一週" },
@@ -27,10 +28,11 @@ const totalCount = document.querySelector("#totalCount");
 const classTotal = document.querySelector("#classTotal");
 const formMessage = document.querySelector("#formMessage");
 const submitButton = document.querySelector(".submit-button");
+let isReviewingSavedRecord = false;
 
 function renderDates() {
   dateList.innerHTML = dates.map((date) => `
-    <article class="date-card">
+    <article class="date-card" data-date-id="${date.id}">
       <div class="date-label">
         <strong>${date.label}</strong>
         <span>${date.week}</span>
@@ -60,6 +62,23 @@ function getSelections() {
   });
 }
 
+function updateSubmitState(filled) {
+  if (isReviewingSavedRecord) {
+    submitButton.disabled = false;
+    submitButton.dataset.ready = "review";
+    submitButton.classList.remove("is-incomplete");
+    submitButton.textContent = "再次修改";
+    return;
+  }
+
+  submitButton.disabled = false;
+  submitButton.dataset.ready = filled === dates.length ? "true" : "false";
+  submitButton.classList.toggle("is-incomplete", filled !== dates.length);
+  submitButton.textContent = filled === dates.length
+    ? "送出調查"
+    : `尚有 ${dates.length - filled} 天未填`;
+}
+
 function updateSummary() {
   const selections = getSelections();
   const present = selections.filter((date) => date.status === "present");
@@ -72,6 +91,7 @@ function updateSummary() {
   absentCount.textContent = absent.length;
   totalCount.textContent = filled;
   classTotal.textContent = present.length;
+  updateSubmitState(filled);
 
   return { selections, present, absent, filled };
 }
@@ -81,10 +101,37 @@ function setMessage(text, type = "") {
   formMessage.className = `form-message ${type}`.trim();
 }
 
+function clearMissingHighlights() {
+  dateList.querySelectorAll(".date-card.is-missing").forEach((card) => {
+    card.classList.remove("is-missing");
+  });
+}
+
+function jumpToMissingDate(date) {
+  clearMissingHighlights();
+
+  const card = dateList.querySelector(`[data-date-id="${date.id}"]`);
+  if (!card) {
+    return;
+  }
+
+  card.classList.add("is-missing");
+  card.scrollIntoView({
+    behavior: "smooth",
+    block: "center"
+  });
+
+  const firstChoice = card.querySelector("input");
+  if (firstChoice) {
+    setTimeout(() => firstChoice.focus({ preventScroll: true }), 350);
+  }
+}
+
 function buildPayload() {
   const summary = updateSummary();
 
   return {
+    action: "upsert",
     submittedAt: new Date().toISOString(),
     studentName: studentName.value,
     presentDates: summary.present.map((date) => date.label),
@@ -99,16 +146,132 @@ function buildPayload() {
   };
 }
 
+function loadSavedSubmissions() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SUBMISSIONS_STORAGE_KEY) || "{}");
+
+    if (Array.isArray(saved)) {
+      return saved.reduce((records, record) => {
+        if (record && record.studentName) {
+          records[record.studentName] = record;
+        }
+
+        return records;
+      }, {});
+    }
+
+    return saved && typeof saved === "object" ? saved : {};
+  } catch (error) {
+    return {};
+  }
+}
+
+function getSavedSubmission(name) {
+  if (!name) {
+    return null;
+  }
+
+  return loadSavedSubmissions()[name] || null;
+}
+
 function saveLocalBackup(payload) {
-  const key = "sports-attendance-submissions";
-  const records = JSON.parse(localStorage.getItem(key) || "[]");
-  records.push(payload);
-  localStorage.setItem(key, JSON.stringify(records));
+  const records = loadSavedSubmissions();
+  records[payload.studentName] = payload;
+  localStorage.setItem(SUBMISSIONS_STORAGE_KEY, JSON.stringify(records));
+}
+
+function setDateInputsDisabled(disabled) {
+  dateList.querySelectorAll("input").forEach((input) => {
+    input.disabled = disabled;
+  });
+}
+
+function clearSelections() {
+  dateList.querySelectorAll("input:checked").forEach((input) => {
+    input.checked = false;
+  });
+}
+
+function getStatusFromSavedRecord(record, date) {
+  const savedDate = Array.isArray(record.records)
+    ? record.records.find((item) => item.dateId === date.id || item.date === date.label)
+    : null;
+
+  if (savedDate && savedDate.status) {
+    return savedDate.status;
+  }
+
+  if (Array.isArray(record.presentDates) && record.presentDates.includes(date.label)) {
+    return "present";
+  }
+
+  if (Array.isArray(record.absentDates) && record.absentDates.includes(date.label)) {
+    return "absent";
+  }
+
+  return "";
+}
+
+function applySavedRecord(record) {
+  clearSelections();
+
+  dates.forEach((date) => {
+    const status = getStatusFromSavedRecord(record, date);
+    const input = status ? form.querySelector(`input[name="${date.id}"][value="${status}"]`) : null;
+
+    if (input) {
+      input.checked = true;
+    }
+  });
+
+  updateSummary();
+}
+
+function setReviewMode(enabled) {
+  isReviewingSavedRecord = enabled;
+  form.classList.toggle("is-reviewing", enabled);
+  setDateInputsDisabled(enabled);
+  updateSummary();
+}
+
+function showSavedRecord(record) {
+  applySavedRecord(record);
+  setReviewMode(true);
+  setMessage(`這是 ${studentName.value} 之前填寫過的資料。若要更改，請按「再次修改」。`, "success");
+}
+
+function startEditingSavedRecord() {
+  setReviewMode(false);
+  setMessage(`正在修改 ${studentName.value} 的資料，送出後會覆蓋舊資料。`);
+
+  const firstChoice = dateList.querySelector("input");
+  if (firstChoice) {
+    firstChoice.focus({ preventScroll: true });
+  }
+}
+
+function handleStudentChange() {
+  clearMissingHighlights();
+
+  const savedRecord = getSavedSubmission(studentName.value);
+  if (savedRecord) {
+    showSavedRecord(savedRecord);
+    return;
+  }
+
+  setReviewMode(false);
+  clearSelections();
+  updateSummary();
+
+  if (studentName.value) {
+    setMessage(`請完成 ${dates.length} 天的出席狀態後再送出。`);
+  } else {
+    setMessage("請先選擇學生姓名。");
+  }
 }
 
 async function submitToGoogleSheet(payload) {
   if (!GOOGLE_APPS_SCRIPT_URL) {
-    saveLocalBackup(payload);
     return {
       ok: true,
       localOnly: true
@@ -131,31 +294,72 @@ async function submitToGoogleSheet(payload) {
 }
 
 function validateForm() {
+  const summary = updateSummary();
+
   if (!studentName.value) {
     setMessage("請先選擇學生姓名。", "error");
     studentName.focus();
+    studentName.scrollIntoView({
+      behavior: "smooth",
+      block: "center"
+    });
     return false;
   }
 
-  const missingDate = getSelections().find((date) => !date.status);
+  const missingDate = summary.selections.find((date) => !date.status);
   if (missingDate) {
-    setMessage(`請選擇 ${missingDate.label} 的出席狀態。`, "error");
+    setMessage(`請先選擇 ${missingDate.label} 的出席狀態。`, "error");
+    jumpToMissingDate(missingDate);
     return false;
   }
 
+  clearMissingHighlights();
   return true;
 }
 
 renderDates();
 updateSummary();
+setMessage(`請完成 ${dates.length} 天的出席狀態後再送出。`);
 
-form.addEventListener("change", () => {
-  updateSummary();
-  setMessage("");
+studentName.addEventListener("change", handleStudentChange);
+
+form.addEventListener("change", (event) => {
+  if (event.target === studentName || isReviewingSavedRecord) {
+    return;
+  }
+
+  const summary = updateSummary();
+  clearMissingHighlights();
+
+  if (summary.filled === dates.length) {
+    setMessage("已完成所有日期，可以送出。", "success");
+  } else {
+    setMessage(`還有 ${dates.length - summary.filled} 天未填，請確認每天都有點選。`);
+  }
+});
+
+submitButton.addEventListener("click", (event) => {
+  if (isReviewingSavedRecord) {
+    event.preventDefault();
+    startEditingSavedRecord();
+    return;
+  }
+
+  if (submitButton.dataset.ready === "true") {
+    return;
+  }
+
+  event.preventDefault();
+  validateForm();
 });
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
+
+  if (isReviewingSavedRecord) {
+    startEditingSavedRecord();
+    return;
+  }
 
   if (!validateForm()) {
     return;
@@ -163,17 +367,21 @@ form.addEventListener("submit", async (event) => {
 
   const payload = buildPayload();
   submitButton.disabled = true;
+  submitButton.classList.remove("is-incomplete");
+  submitButton.textContent = "送出中...";
   setMessage("送出中...");
 
   try {
     const result = await submitToGoogleSheet(payload);
+    saveLocalBackup(payload);
     const localNote = result.localOnly ? "目前尚未設定 Google Sheets，資料已先暫存在此裝置。" : "已送出到 Google Sheets。";
     setMessage(localNote, "success");
+    setReviewMode(true);
   } catch (error) {
     saveLocalBackup(payload);
     setMessage("網路送出失敗，資料已先暫存在此裝置。", "error");
   } finally {
-    submitButton.disabled = false;
+    updateSummary();
   }
 });
 

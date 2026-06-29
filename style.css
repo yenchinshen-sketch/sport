@@ -193,6 +193,13 @@ select {
   border-left-color: var(--red);
 }
 
+.date-card.is-missing {
+  border-color: rgba(242, 92, 84, 0.85);
+  border-left-color: var(--red);
+  background: #fff5f3;
+  box-shadow: 0 0 0 4px rgba(242, 92, 84, 0.13), 0 12px 24px rgba(19, 45, 74, 0.12);
+}
+
 .date-label {
   min-width: 0;
 }
@@ -253,6 +260,20 @@ select {
   border-color: #c53e38;
 }
 
+.survey-form.is-reviewing .date-card {
+  background: #fbfcfd;
+}
+
+.survey-form.is-reviewing .choice-pill,
+.choice-group input:disabled + .choice-pill {
+  cursor: default;
+}
+
+.survey-form.is-reviewing .choice-group input:not(:checked) + .choice-pill {
+  color: rgba(98, 114, 132, 0.7);
+  background: #eef2f6;
+}
+
 .summary {
   padding: 16px;
   background: #fff;
@@ -307,9 +328,16 @@ select {
   transform: translateY(1px);
 }
 
+.submit-button.is-incomplete {
+  color: rgba(23, 35, 54, 0.66);
+  background: #e3e8ee;
+  box-shadow: none;
+}
+
 .submit-button[disabled] {
   color: rgba(23, 35, 54, 0.55);
-  cursor: wait;
+  background: #e3e8ee;
+  cursor: not-allowed;
   box-shadow: none;
 }
 
