@@ -358,6 +358,26 @@ select {
   color: var(--red);
 }
 
+.fee-link-wrap {
+  margin: 16px 0 0;
+  text-align: center;
+}
+
+.fee-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 16px;
+  color: #12324f;
+  font-weight: 950;
+  text-decoration: none;
+  background: #fff;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 8px 18px rgba(19, 45, 74, 0.08);
+}
+
 @media (min-width: 520px) {
   .app-shell {
     padding-inline: 20px;

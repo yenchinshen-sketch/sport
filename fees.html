@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>北小畢業生運動費用結算</title>
+  <link rel="stylesheet" href="fees.css">
+</head>
+<body>
+  <main class="fee-app">
+    <section class="fee-hero" aria-label="費用結算總覽">
+      <img src="assets/group-photo.jpg" alt="北小畢業生運動團體照片">
+      <div class="fee-hero-copy">
+        <p class="eyebrow">Fee Summary</p>
+        <h1>北小畢業生運動費用結算</h1>
+        <p>每日教練費 2,000 元，由當天出席學生平均分攤。</p>
+        <a class="hero-link" href="index.html">回出席調查</a>
+      </div>
+    </section>
+
+    <section class="toolbar" aria-label="資料狀態">
+      <div>
+        <span id="dataStatus" class="status-pill">讀取資料中</span>
+        <p id="lastUpdated" class="status-note">正在連線到 Google Sheet...</p>
+      </div>
+      <div class="toolbar-actions">
+        <button id="refreshButton" type="button">重新整理</button>
+        <button id="downloadButton" type="button">下載 CSV</button>
+      </div>
+    </section>
+
+    <section class="stats-grid" aria-label="結算摘要">
+      <article>
+        <span id="totalCoachFee">0</span>
+        <small>教練費總額</small>
+      </article>
+      <article>
+        <span id="settledDays">0</span>
+        <small>計費天數</small>
+      </article>
+      <article>
+        <span id="studentCount">0</span>
+        <small>已取得學生</small>
+      </article>
+    </section>
+
+    <section class="panel" aria-labelledby="dailyTitle">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Daily Split</p>
+          <h2 id="dailyTitle">每日出席與應繳費用</h2>
+        </div>
+      </div>
+      <div id="dailyList" class="daily-list"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="studentTitle">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Student Total</p>
+          <h2 id="studentTitle">每位學生合計</h2>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>學生</th>
+              <th>出席天數</th>
+              <th>應繳合計</th>
+              <th>資料狀態</th>
+            </tr>
+          </thead>
+          <tbody id="studentRows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="fees.js?v=1"></script>
+</body>
+</html>
